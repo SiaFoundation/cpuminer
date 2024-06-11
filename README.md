@@ -1,6 +1,17 @@
 # CPU Miner
 
-A very simple (and naive) single-threaded CPU miner for Siacoin testnet mining
+A very simple (and naive) single-threaded CPU miner for Siacoin testnet mining.
+
+## Prerequisites
+
+- A running walletd node. 
+  - Does not need to have any addresses or wallets.
+- A Siacoin address to mine to
+
+## Building
+```sh
+go build -o bin/ ./cmd/cpuminerd
+```
 
 ## Usage
 
