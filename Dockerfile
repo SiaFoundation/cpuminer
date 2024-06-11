@@ -28,11 +28,6 @@ ENV PGID=0
 # copy binary and prepare data dir.
 COPY --from=builder /cpuminerd/bin/* /usr/bin/
 
-# API port
-EXPOSE 9980/tcp
-# RPC port
-EXPOSE 9981/tcp
-
 USER ${PUID}:${PGID}
 
 ENTRYPOINT [ "cpuminerd" ]
