@@ -15,7 +15,7 @@ services:
     image: ghcr.io/siafoundation/walletd:master
     ports:
       - localhost:9980:9980
-  	  - 9981: 9981
+      - 9981:9981
     volumes:
       - ./wallet:/data
     restart: unless-stopped
