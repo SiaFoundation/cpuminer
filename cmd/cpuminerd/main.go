@@ -71,7 +71,6 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 			continue
 		}
 		log.Debug("found nonce", zap.Uint64("nonce", b.Nonce))
-		index := types.ChainIndex{Height: cs.Index.Height + 1, ID: b.ID()}
 		tip, err := c.ConsensusTip()
 		if !check("failed to get consensus tip:", err) {
 			continue
@@ -82,7 +81,7 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 		} else if err := c.SyncerBroadcastBlock(b); err != nil {
 			log.Error("mined invalid block", zap.Error(err))
 		}
-		log.Info("mined block", zap.Stringer("blockID", index.ID), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
+		log.Info("mined block", zap.Stringer("blockID", b.ID()), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
 	}
 }
 
