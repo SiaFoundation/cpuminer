@@ -80,8 +80,9 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 			log.Info("mined stale block", zap.Stringer("current", tip), zap.Stringer("original", cs.Index))
 		} else if err := c.SyncerBroadcastBlock(b); err != nil {
 			log.Error("mined invalid block", zap.Error(err))
+		} else {
+			log.Info("mined block", zap.Stringer("blockID", b.ID()), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
 		}
-		log.Info("mined block", zap.Stringer("blockID", b.ID()), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
 	}
 }
 
