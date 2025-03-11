@@ -40,7 +40,7 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 		log := log.With(zap.Uint64("height", cs.Index.Height+1), zap.Stringer("parentID", cs.Index.ID), zap.Stringer("difficulty", d))
 
 		log.Debug("mining block")
-		txns, v2txns, err := c.TxpoolTransactions()
+		_, txns, v2txns, err := c.TxpoolTransactions()
 		if !check("failed to get txpool transactions", err) {
 			continue
 		}
@@ -58,7 +58,7 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 		for _, txn := range v2txns {
 			b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.MinerFee)
 		}
-		if len(v2txns) > 0 || cs.Index.Height+1 >= cs.Network.HardforkV2.RequireHeight {
+		if cs.Index.Height+1 >= cs.Network.HardforkV2.AllowHeight {
 			b.V2 = &types.V2BlockData{
 				Height:       cs.Index.Height + 1,
 				Transactions: v2txns,
