@@ -9,7 +9,7 @@ import (
 
 	"go.sia.tech/core/types"
 	"go.sia.tech/coreutils"
-	"go.sia.tech/walletd/api"
+	"go.sia.tech/walletd/v2/api"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"lukechampine.com/frand"
