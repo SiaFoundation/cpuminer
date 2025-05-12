@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	go.sia.tech/core v0.12.0
-	go.sia.tech/coreutils v0.13.2
+	go.sia.tech/coreutils v0.13.3
 	go.sia.tech/walletd v0.9.0-beta.1.0.20250224212402-c82c1fb1d43d
 	go.uber.org/zap v1.27.0
 	lukechampine.com/frand v1.5.1
