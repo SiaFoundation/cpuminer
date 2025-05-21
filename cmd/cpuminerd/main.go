@@ -45,6 +45,7 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 			continue
 		}
 
+		nonSiaPrefix := types.NewSpecifier("NonSia")
 		b := types.Block{
 			ParentID:     cs.Index.ID,
 			Nonce:        cs.NonceFactor() * frand.Uint64n(100),
@@ -58,12 +59,20 @@ func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
 		for _, txn := range v2txns {
 			b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.MinerFee)
 		}
+		arbData := append(nonSiaPrefix[:], frand.Bytes(8)...)
 		if cs.Index.Height+1 >= cs.Network.HardforkV2.AllowHeight {
+			v2txns = append(v2txns, types.V2Transaction{
+				ArbitraryData: arbData,
+			})
 			b.V2 = &types.V2BlockData{
 				Height:       cs.Index.Height + 1,
 				Transactions: v2txns,
 			}
 			b.V2.Commitment = cs.Commitment(b.MinerPayouts[0].Address, b.Transactions, b.V2Transactions())
+		} else {
+			b.Transactions = append(b.Transactions, types.Transaction{
+				ArbitraryData: [][]byte{arbData},
+			})
 		}
 
 		if !coreutils.FindBlockNonce(cs, &b, time.Minute) {
