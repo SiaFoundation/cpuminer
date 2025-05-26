@@ -1,97 +1,156 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
-	"math/big"
 	"os"
+	"os/signal"
+	"sync"
 	"time"
 
 	"go.sia.tech/core/types"
-	"go.sia.tech/coreutils"
 	"go.sia.tech/walletd/v2/api"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"lukechampine.com/frand"
 )
 
-func runCPUMiner(c *api.Client, minerAddr types.Address, log *zap.Logger) {
-	log.Info("starting cpu miner", zap.String("minerAddr", minerAddr.String()))
-	start := time.Now()
+func mineBlock(ctx context.Context, c *api.Client, minerAddr types.Address, threads int, log *zap.Logger) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	check := func(msg string, err error) bool {
-		if err != nil {
-			log.Error(msg, zap.Error(err))
-			time.Sleep(15 * time.Second)
-			return false
-		}
-		return true
+	cs, err := c.ConsensusTipState()
+	if err != nil {
+		return fmt.Errorf("failed to get consensus tip state: %w", err)
+	}
+	_, txns, v2txns, err := c.TxpoolTransactions()
+	if err != nil {
+		return fmt.Errorf("failed to get txpool transactions: %w", err)
 	}
 
-	for {
-		elapsed := time.Since(start)
-		cs, err := c.ConsensusTipState()
-		if !check("failed to get consensus tip state", err) {
-			continue
-		}
+	go func() {
+		t := time.NewTicker(10 * time.Second)
+		defer t.Stop()
 
-		d, _ := new(big.Int).SetString(cs.Difficulty.String(), 10)
-		d.Mul(d, big.NewInt(int64(1+elapsed)))
-		log := log.With(zap.Uint64("height", cs.Index.Height+1), zap.Stringer("parentID", cs.Index.ID), zap.Stringer("difficulty", d))
-
-		log.Debug("mining block")
-		_, txns, v2txns, err := c.TxpoolTransactions()
-		if !check("failed to get txpool transactions", err) {
-			continue
-		}
-
-		nonSiaPrefix := types.NewSpecifier("NonSia")
-		b := types.Block{
-			ParentID:     cs.Index.ID,
-			Nonce:        cs.NonceFactor() * frand.Uint64n(100),
-			Timestamp:    types.CurrentTimestamp(),
-			MinerPayouts: []types.SiacoinOutput{{Address: minerAddr, Value: cs.BlockReward()}},
-			Transactions: txns,
-		}
-		for _, txn := range txns {
-			b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.TotalFees())
-		}
-		for _, txn := range v2txns {
-			b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.MinerFee)
-		}
-		arbData := append(nonSiaPrefix[:], frand.Bytes(8)...)
-		if cs.Index.Height+1 >= cs.Network.HardforkV2.AllowHeight {
-			v2txns = append(v2txns, types.V2Transaction{
-				ArbitraryData: arbData,
-			})
-			b.V2 = &types.V2BlockData{
-				Height:       cs.Index.Height + 1,
-				Transactions: v2txns,
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
 			}
-			b.V2.Commitment = cs.Commitment(b.MinerPayouts[0].Address, b.Transactions, b.V2Transactions())
-		} else {
-			b.Transactions = append(b.Transactions, types.Transaction{
-				ArbitraryData: [][]byte{arbData},
-			})
-		}
 
-		if !coreutils.FindBlockNonce(cs, &b, time.Minute) {
-			log.Debug("failed to find nonce")
-			continue
+			index, err := c.ConsensusTip()
+			if err != nil {
+				log.Error("failed to get consensus tip state", zap.Error(err))
+				continue
+			} else if index != cs.Index {
+				log.Debug("consensus tip changed, restarting", zap.Stringer("newTip", index))
+				cancel()
+				return
+			}
+
+			_, newTxns, newV2txns, err := c.TxpoolTransactions()
+			if err != nil {
+				log.Error("failed to get txpool transactions", zap.Error(err))
+				continue
+			} else if len(newTxns) != len(txns) {
+				log.Debug("txpool transactions changed, restarting", zap.Int("newTxns", len(newTxns)), zap.Int("oldTxns", len(txns)))
+				cancel()
+				return
+			} else if len(newV2txns) != len(v2txns) {
+				log.Debug("v2 txpool transactions changed, restarting", zap.Int("newV2txns", len(newV2txns)), zap.Int("oldV2txns", len(v2txns)))
+				cancel()
+				return
+			}
 		}
-		log.Debug("found nonce", zap.Uint64("nonce", b.Nonce))
+	}()
+
+	nonSiaPrefix := types.NewSpecifier("NonSia")
+	b := types.Block{
+		ParentID:     cs.Index.ID,
+		Nonce:        0,
+		Timestamp:    types.CurrentTimestamp(),
+		MinerPayouts: []types.SiacoinOutput{{Address: minerAddr, Value: cs.BlockReward()}},
+		Transactions: txns,
+	}
+	for _, txn := range txns {
+		b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.TotalFees())
+	}
+	for _, txn := range v2txns {
+		b.MinerPayouts[0].Value = b.MinerPayouts[0].Value.Add(txn.MinerFee)
+	}
+	arbData := append(nonSiaPrefix[:], frand.Bytes(8)...)
+	if cs.Index.Height+1 >= cs.Network.HardforkV2.AllowHeight {
+		b.V2 = &types.V2BlockData{
+			Height: cs.Index.Height + 1,
+			Transactions: append(v2txns, types.V2Transaction{
+				ArbitraryData: arbData,
+			}),
+		}
+		b.V2.Commitment = cs.Commitment(b.MinerPayouts[0].Address, b.Transactions, b.V2Transactions())
+	} else {
+		b.Transactions = append(b.Transactions, types.Transaction{
+			ArbitraryData: [][]byte{arbData},
+		})
+	}
+
+	results := make(chan uint64, threads)
+	step := cs.NonceFactor() * uint64(threads)
+	var wg sync.WaitGroup
+	defer wg.Wait() // wait for all threads to finish
+	for i := range threads {
+		wg.Add(1)
+		log := log.With(zap.Int("thread", i+1))
+		log.Debug("starting mining thread")
+
+		go func(ctx context.Context, header types.BlockHeader, target types.BlockID, worker int, log *zap.Logger) {
+			defer wg.Done()
+
+			start := cs.NonceFactor() * uint64(worker)
+			for nonce := start; ; nonce += step {
+				select {
+				case <-ctx.Done():
+					log.Debug("stopped mining thread")
+					return
+				default:
+				}
+
+				header.Nonce = nonce
+				if header.ID().CmpWork(target) >= 0 {
+					results <- nonce
+					log.Debug("found nonce", zap.Uint64("nonce", nonce))
+					return
+				}
+			}
+		}(ctx, b.Header(), cs.ChildTarget, i, log)
+	}
+
+	select {
+	case nonce := <-results:
+		cancel() // stop other threads
+
+		b.Nonce = nonce
 		tip, err := c.ConsensusTip()
-		if !check("failed to get consensus tip:", err) {
-			continue
-		}
-
-		if tip != cs.Index {
+		if err != nil {
+			return fmt.Errorf("failed to get consensus tip: %w", err)
+		} else if tip != cs.Index {
 			log.Info("mined stale block", zap.Stringer("current", tip), zap.Stringer("original", cs.Index))
+			return nil
 		} else if err := c.SyncerBroadcastBlock(b); err != nil {
-			log.Error("mined invalid block", zap.Error(err))
-		} else {
-			log.Info("mined block", zap.Stringer("blockID", b.ID()), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
+			return fmt.Errorf("failed to broadcast block: %w", err)
 		}
+		var height uint64
+		if b.V2 != nil {
+			height = b.V2.Height
+		} else {
+			height = cs.Index.Height + 1
+		}
+		log.Info("mined block", zap.Uint64("height", height), zap.Stringer("blockID", b.ID()), zap.Stringer("fees", b.MinerPayouts[0].Value), zap.Int("transactions", len(b.Transactions)), zap.Int("v2transactions", len(b.V2Transactions())))
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -120,11 +179,14 @@ func main() {
 		apiPassword string
 
 		logLevel string
+
+		threads int
 	)
 
 	flag.StringVar(&minerAddrStr, "address", "", "address to send mining rewards to")
-	flag.StringVar(&apiAddress, "api", "localhost:9980", "address of the walletd API")
+	flag.StringVar(&apiAddress, "api", "http://localhost:9980/api", "address of the walletd API")
 	flag.StringVar(&apiPassword, "password", "", "password for the walletd API")
+	flag.IntVar(&threads, "threads", 1, "number of threads to use for mining")
 	flag.StringVar(&logLevel, "log.level", "info", "log level")
 	flag.Parse()
 
@@ -152,5 +214,20 @@ func main() {
 
 	zap.RedirectStdLog(log)
 
-	runCPUMiner(c, address, log)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
+	defer cancel()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Info("shutting down")
+			return
+		default:
+		}
+
+		err := mineBlock(ctx, c, address, threads, log)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error("failed to mine block", zap.Error(err))
+		}
+	}
 }
