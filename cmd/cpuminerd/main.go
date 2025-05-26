@@ -39,29 +39,30 @@ func mineBlock(ctx context.Context, c *api.Client, minerAddr types.Address, thre
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				index, err := c.ConsensusTip()
-				if err != nil {
-					log.Error("failed to get consensus tip state", zap.Error(err))
-					continue
-				} else if index != cs.Index {
-					log.Debug("consensus tip changed, restarting", zap.Stringer("newTip", index))
-					cancel()
-					return
-				}
+			}
 
-				_, newTxns, newV2txns, err := c.TxpoolTransactions()
-				if err != nil {
-					log.Error("failed to get txpool transactions", zap.Error(err))
-					continue
-				} else if len(newTxns) != len(txns) {
-					log.Debug("txpool transactions changed, restarting", zap.Int("newTxns", len(newTxns)), zap.Int("oldTxns", len(txns)))
-					cancel()
-					return
-				} else if len(newV2txns) != len(v2txns) {
-					log.Debug("v2 txpool transactions changed, restarting", zap.Int("newV2txns", len(newV2txns)), zap.Int("oldV2txns", len(v2txns)))
-					cancel()
-					return
-				}
+			index, err := c.ConsensusTip()
+			if err != nil {
+				log.Error("failed to get consensus tip state", zap.Error(err))
+				continue
+			} else if index != cs.Index {
+				log.Debug("consensus tip changed, restarting", zap.Stringer("newTip", index))
+				cancel()
+				return
+			}
+
+			_, newTxns, newV2txns, err := c.TxpoolTransactions()
+			if err != nil {
+				log.Error("failed to get txpool transactions", zap.Error(err))
+				continue
+			} else if len(newTxns) != len(txns) {
+				log.Debug("txpool transactions changed, restarting", zap.Int("newTxns", len(newTxns)), zap.Int("oldTxns", len(txns)))
+				cancel()
+				return
+			} else if len(newV2txns) != len(v2txns) {
+				log.Debug("v2 txpool transactions changed, restarting", zap.Int("newV2txns", len(newV2txns)), zap.Int("oldV2txns", len(v2txns)))
+				cancel()
+				return
 			}
 		}
 	}()
