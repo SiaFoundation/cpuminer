@@ -3,7 +3,7 @@ module go.sia.tech/cpuminerd
 go 1.24.2
 
 require (
-	go.sia.tech/core v0.15.0
+	go.sia.tech/core v0.16.0
 	go.sia.tech/walletd/v2 v2.10.4
 	go.uber.org/zap v1.27.0
 	lukechampine.com/frand v1.5.1
