@@ -124,7 +124,7 @@ func mineBlock(ctx context.Context, c *api.Client, minerAddr types.Address, thre
 					return
 				}
 			}
-		}(ctx, b.Header(), cs.ChildTarget, i, log)
+		}(ctx, b.Header(), cs.PoWTarget(), i, log)
 	}
 
 	select {
