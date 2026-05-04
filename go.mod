@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	go.sia.tech/core v0.20.0
 	go.sia.tech/walletd/v2 v2.12.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 	lukechampine.com/frand v1.5.1
 )
 
