@@ -3,8 +3,8 @@ module go.sia.tech/cpuminerd
 go 1.26.0
 
 require (
-	go.sia.tech/core v0.21.4
-	go.sia.tech/walletd/v2 v2.15.0
+	go.sia.tech/core v0.21.6
+	go.sia.tech/walletd/v2 v2.15.2
 	go.uber.org/zap v1.28.0
 	lukechampine.com/frand v1.5.1
 )
@@ -12,7 +12,7 @@ require (
 require (
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
-	go.sia.tech/coreutils v0.23.2 // indirect
+	go.sia.tech/coreutils v0.23.5 // indirect
 	go.sia.tech/jape v0.14.1 // indirect
 	go.sia.tech/mux v1.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
