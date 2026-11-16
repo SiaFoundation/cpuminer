@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	go.sia.tech/core v0.21.8
-	go.sia.tech/walletd/v2 v2.16.0
+	go.sia.tech/walletd/v2 v2.16.1
 	go.uber.org/zap v1.28.0
 	lukechampine.com/frand v1.5.1
 )
@@ -18,7 +18,7 @@ require (
 	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	go.sia.tech/coreutils v0.25.1 // indirect
+	go.sia.tech/coreutils v0.25.3 // indirect
 	go.sia.tech/jape v0.14.4 // indirect
 	go.sia.tech/mux v1.5.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
